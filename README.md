@@ -11,7 +11,8 @@ Here are some examples:
 
 ![37degree](https://github.com/cjzjolly/rotateNV21AnyAngle/blob/main/37degree.png)
 
-![155degree](/home/chenjiezhu/eclipse-workspace/MatrixRotate/src/com/cjz/lab/rotateNV21AnyAngle/155degree.jpg)
+
+![155degree](https://github.com/cjzjolly/rotateNV21AnyAngle/blob/main/155degree.jpg)
 
 
 
