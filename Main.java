@@ -65,7 +65,7 @@ public class Main {
 			int offsetX = (area[0] - width) / 2;
 			int offsetY = (area[1] - height) / 2;
 
-			for (int i = 0; i < data.length * 2 / 3; i += width) {
+			for (int i = 0; i < data.length; i += width) {
 				double startXY[] = rotateCoordinateTransform(rotateDegree, 0, i / width, width / 2, height / 2, true);
 				double endXY[] = rotateCoordinateTransform(rotateDegree, width - 1, i / width, width / 2, height / 2,
 						true);
