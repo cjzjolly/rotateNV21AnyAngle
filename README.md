@@ -3,7 +3,7 @@ typora-copy-images-to: ./
 ---
 
 # rotateNV21AnyAngle
-Algorithm of turning nv21 image at any angle,Research and development in person.
+Algorithm of turning nv21 or nv12 image(YUV420) at any angle,Research and development in person.
 
 
 
