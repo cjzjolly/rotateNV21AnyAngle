@@ -61,7 +61,7 @@ public class Main {
 				area[0]++; // uv要每两个单元为一组 因此宽度不能为奇数
 			if (area[1] % 2 != 0)
 				area[1]++;
-			byte pixels[] = new byte[area[0] * area[1] * 3 / 2];
+			byte pixels[] = new byte[area[0] * area[1]];
 			int offsetX = (area[0] - width) / 2;
 			int offsetY = (area[1] - height) / 2;
 
@@ -139,13 +139,13 @@ public class Main {
 					if (x - 1 >= 0 && pixels[y * area[0] + x - 1] == 0) { // 补足因信息不足产生的空隙区域
 						pixels[y * area[0] + x - 1] = data[j];
 					}
-					int uvX;
-					if (j % width % 2 == 0) { // 不能整除的部分即每行的x
-						uvX = j % width; // 刚好对准U
-					} else {
-						uvX = j % width - 1; // 对上了V 向前偏移1
-					}
 					if (/* y % 2 == 0 && */x % 2 == 0) {// 使uv位置对准新数组的uv位置，要注意别让数组越界 部分角度产生的y值很容易大概率落在奇数处，所以y%2==0不能用
+						int uvX;
+						if (j % width % 2 == 0) { // 不能整除的部分即每行的x
+							uvX = j % width; // 刚好对准U
+						} else {
+							uvX = j % width - 1; // 对上了V 向前偏移1
+						}
 						int uvLayerOffset = area[0] * area[1] + y / 2 * area[0] + x; // u位置
 						int srcDataOffset = width * height + row / 2 * width + uvX;
 						// 更新当前行UV
@@ -226,7 +226,7 @@ public class Main {
 		return temp;
 	}
 
-	private int[] rotateAreaTransform(float rotateDegree, int width, int height) { // 有bug
+	private int[] rotateAreaTransform(float rotateDegree, int width, int height) {
 		double degreeToRadians = Math.toRadians(rotateDegree);
 		int newWidth = (int) (Math.abs(Math.cos(degreeToRadians) * width)
 				+ Math.abs(Math.sin(degreeToRadians) * height));
