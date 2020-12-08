@@ -17,7 +17,8 @@ double *rotateCoordinateTransform(float rotateDegree, int bmpX, int bmpY, int ce
                                   int centerPointY, int ccw);
 int *rotateAreaTransform(float rotateDegree, int width, int height);
 ListHead *drawLine(int x1, int y1, int x2, int y2, int srcLineWidth);
-unsigned char *rotateMatrix(unsigned char *data, int dataLen, int width, int height, int rotateDegree);
+unsigned char *rotateGray(unsigned char *data, int dataLen, int width, int height, int rotateDegree);
+unsigned char *rotateYUV420(unsigned char *data, int dataLen, int width, int height, int rotateDegree);
 
 long getFileSize(char *path)
 {
@@ -40,7 +41,9 @@ int main()
     memcpy(temp, fileMapAddress, (int)fileSize);
     int i;
     for (i = 0; i <= 360; i++) {
-        char *pixel = rotateMatrix(temp, (int)fileSize, 2048, 1024, i);
+        char *pixel = rotateYUV420(temp, (int)fileSize, 2048, 1024, i);
+        free(pixel);
+        pixel = rotateGray(temp, (int)fileSize * 2 / 3, 2048, 1024, 60);
         free(pixel);
     }
     munmap(fileMapAddress, fileSize);
@@ -48,7 +51,84 @@ int main()
     return 0;
 }
 
-unsigned char *rotateMatrix(unsigned char *data, int dataLen, int width, int height, int rotateDegree)
+unsigned char *rotateGray(unsigned char *data, int dataLen, int width, int height, int rotateDegree) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    long startTimeStamp = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    int *area = rotateAreaTransform(rotateDegree, width, height);
+    if (area[0] % 2 != 0)
+        area[0]++; // uv要每两个单元为一组 因此宽度不能为奇数
+    if (area[1] % 2 != 0)
+        area[1]++;
+    int pixelsLen = area[0] * area[1];
+    unsigned char *pixels = malloc(pixelsLen);
+    memset(pixels, 0, pixelsLen);
+    int offsetX = (area[0] - width) / 2;
+    int offsetY = (area[1] - height) / 2;
+    // 计算旋转后2个顶点
+    double *firstRowXYStard = rotateCoordinateTransform(rotateDegree, 0, 0, width / 2, height / 2, 1);
+    double *firstRowXYEnd = rotateCoordinateTransform(rotateDegree, width, 0, width / 2, height / 2, 1);
+    double *lastRowXYStart = rotateCoordinateTransform(rotateDegree, 0, height, width / 2, height / 2, 1);
+    // 计算最后一行与第一行的偏移值dx，算出行与行之间要进行x偏移值ddx 每行的斜率是一致的不用算
+    double ddx = (lastRowXYStart[0] - firstRowXYStard[0]) / height;
+    double ddy = (lastRowXYStart[1] - firstRowXYStard[1]) / height;
+
+    ListHead *linePoints = drawLine((int)firstRowXYStard[0], (int)firstRowXYStard[1], (int)firstRowXYEnd[0],
+                                    (int)firstRowXYEnd[1], width);
+    free(firstRowXYStard);
+    free(firstRowXYEnd);
+    free(lastRowXYStart);
+    int i, row;
+
+    for (i = 0, row = 0; i < dataLen; i += width, row++)
+    {
+        int j = i;
+        ListItem *cursor = linePoints->headItem;
+        while (cursor != NULL)
+        {
+            int *pointXY = (int *)cursor->content;
+            int x = (int)(pointXY[0] + offsetX + ddx * row);
+            int y = (int)(pointXY[1] + offsetY + ddy * row);
+            if (x >= 0 && y >= 0 && x < area[0] && y < area[1])
+            {
+                pixels[y * area[0] + x] = data[j];
+                if (x - 1 >= 0 && pixels[y * area[0] + x - 1] == 0)
+                { // 补足因信息不足产生的空隙区域
+                    pixels[y * area[0] + x - 1] = data[j];
+                }
+                ++j;
+            }
+            cursor = cursor->next;
+        }
+    }
+    destory(linePoints);
+    gettimeofday(&tv, NULL);
+    long endTime = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    printf("cycle end in %ld ms\n", endTime - startTimeStamp);
+
+    char outputName[3000];
+    char numChar[25];
+    memset(outputName, 0, 3000);
+    strcat(outputName, "/media/chenjiezhu/work2/其他/Download/test/degree_");
+    sprintf(numChar, "%d", rotateDegree);
+    strcat(outputName, numChar);
+    strcat(outputName, "_");
+    sprintf(numChar, "%d", area[0]);
+    strcat(outputName, numChar);
+    strcat(outputName, "x");
+    sprintf(numChar, "%d", area[1]);
+    strcat(outputName, numChar);
+    strcat(outputName, ".grau");
+    unsigned long f = open(outputName, O_RDWR | O_CREAT);
+    printf("path:%s\n", outputName);
+    int result = write(f, (void *)pixels, pixelsLen);
+    free(area);
+    printf("result : %d\n", result);
+    close(f);
+    return pixels;
+}
+
+unsigned char *rotateYUV420(unsigned char *data, int dataLen, int width, int height, int rotateDegree)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);
