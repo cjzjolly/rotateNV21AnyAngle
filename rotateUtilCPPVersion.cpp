@@ -8,26 +8,86 @@
 #include <fcntl.h>
 #include <string.h>
 #include "math.h"
-#include "./LinkedList.h"
+// #include "./LinkedList.h"
+#include <list>
+
+class ImageData {
+    public :
+        int width;
+        int height;
+        int dataLen;
+        unsigned char *data;
+};
+
+class Point {
+    public:
+        int x;
+        int y;
+};
+ 
+using namespace std;
 
 #define PI 3.14159265
 
-struct imageData {
-    int width;
-    int height;
-    int dataLen;
-    unsigned char *data;
-};
-typedef struct imageData ImageData;
+
 
 double *rotateCoordinateTransform(float rotateDegree, int bmpX, int bmpY, int centerPointX,
                                   int centerPointY, int ccw);
 int *rotateAreaTransform(float rotateDegree, int width, int height);
-ListHead *drawLine(int x1, int y1, int x2, int y2, int srcLineWidth);
+list<Point> drawLine(int x1, int y1, int x2, int y2, int srcLineWidth);
 ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, int rotateDegree);
 ImageData rotateYUV420(unsigned char *data, int dataLen, int width, int height, int rotateDegree);
 
 
+long getFileSize(char *path)
+{
+    long size = -1;
+    struct stat s;
+    if (stat(path, &s) >= 0)
+    {
+        size = s.st_size;
+    }
+    return size;
+}
+
+int main(){
+    char *filePath = "/media/chenjiezhu/work2/其他/Download/2048x1024_1605497440349.nv21";
+    unsigned long f = open(filePath, O_RDWR);
+    long fileSize = getFileSize(filePath);
+    void *fileMapAddress = mmap(0, fileSize, PROT_READ | PROT_WRITE, MAP_SHARED, f, 0);
+    unsigned char temp[(int)fileSize];
+    memcpy(temp, fileMapAddress, (int)fileSize);
+    int i;
+    for (i = 0; i <= 360; i++) {
+        ImageData data = rotateGray(temp, (int)fileSize * 2 / 3, 2048, 1024, i);
+
+        char outputName[3000];
+        char numChar[25];
+        memset(outputName, 0, 3000);
+        strcat(outputName, "/media/chenjiezhu/work2/其他/Download/test/degree_");
+        sprintf(numChar, "%d", i);
+        strcat(outputName, numChar);
+        strcat(outputName, "_");
+        sprintf(numChar, "%d", data.width);
+        strcat(outputName, numChar);
+        strcat(outputName, "x");
+        sprintf(numChar, "%d", data.height);
+        strcat(outputName, numChar);
+        strcat(outputName, ".gray");
+        unsigned long f = open(outputName, O_RDWR | O_CREAT);
+        printf("path:%s\n", outputName);
+        int result = write(f, (void *)data.data, data.dataLen);
+        printf("result : %d\n", result);
+        close(f);
+
+
+        free(data.data);
+        // delete &data;
+    }
+    munmap(fileMapAddress, fileSize);
+    close(f);
+    return 0;
+}
 
 ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, int rotateDegree) {
     int *area = rotateAreaTransform(rotateDegree, width, height);
@@ -36,7 +96,7 @@ ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, in
     if (area[1] % 2 != 0)
         area[1]++;
     int pixelsLen = area[0] * area[1];
-    unsigned char *pixels = (unsigned char *)malloc(pixelsLen);
+    unsigned char *pixels = (unsigned char *) malloc(pixelsLen);
     memset(pixels, 0, pixelsLen);
     int offsetX = (area[0] - width) / 2;
     int offsetY = (area[1] - height) / 2;
@@ -48,8 +108,8 @@ ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, in
     double ddx = (lastRowXYStart[0] - firstRowXYStard[0]) / height;
     double ddy = (lastRowXYStart[1] - firstRowXYStard[1]) / height;
 
-    ListHead *linePoints = drawLine((int)firstRowXYStard[0], (int)firstRowXYStard[1], (int)firstRowXYEnd[0],
-                                    (int)firstRowXYEnd[1], width);
+    list<Point> linePoints = drawLine((int)firstRowXYStard[0], (int)firstRowXYStard[1], (int)firstRowXYEnd[0],
+                                      (int)firstRowXYEnd[1], width);
     free(firstRowXYStard);
     free(firstRowXYEnd);
     free(lastRowXYStart);
@@ -58,12 +118,11 @@ ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, in
     for (i = 0, row = 0; i < dataLen; i += width, row++)
     {
         int j = i;
-        ListItem *cursor = linePoints->headItem;
-        while (cursor != NULL)
+        for(std::list<Point>::iterator it = linePoints.begin(); it != linePoints.end();it++)
         {
-            int *pointXY = (int *)cursor->content;
-            int x = (int)(pointXY[0] + offsetX + ddx * row);
-            int y = (int)(pointXY[1] + offsetY + ddy * row);
+            Point pointXY = *it;
+            int x = (int)(pointXY.x + offsetX + ddx * row);
+            int y = (int)(pointXY.y + offsetY + ddy * row);
             if (x >= 0 && y >= 0 && x < area[0] && y < area[1])
             {
                 pixels[y * area[0] + x] = data[j];
@@ -73,10 +132,10 @@ ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, in
                 }
                 ++j;
             }
-            cursor = cursor->next;
         }
     }
-    destory(linePoints);
+
+    linePoints.clear();
     ImageData imageData;
     imageData.width = area[0];
     imageData.height = area[1];
@@ -85,6 +144,8 @@ ImageData rotateGray(unsigned char *data, int dataLen, int width, int height, in
     free(area);
     return imageData;
 }
+
+
 
 ImageData rotateYUV420(unsigned char *data, int dataLen, int width, int height, int rotateDegree)
 {
@@ -106,22 +167,29 @@ ImageData rotateYUV420(unsigned char *data, int dataLen, int width, int height, 
     double ddx = (lastRowXYStart[0] - firstRowXYStard[0]) / height;
     double ddy = (lastRowXYStart[1] - firstRowXYStard[1]) / height;
 
-    ListHead *linePoints = drawLine((int)firstRowXYStard[0], (int)firstRowXYStard[1], (int)firstRowXYEnd[0],
+    list<Point> linePoints = drawLine((int)firstRowXYStard[0], (int)firstRowXYStard[1], (int)firstRowXYEnd[0],
                                     (int)firstRowXYEnd[1], width);
     free(firstRowXYStard);
     free(firstRowXYEnd);
     free(lastRowXYStart);
     int i, row;
 
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    long startTimeStamp = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+
     for (i = 0, row = 0; i < dataLen * 2 / 3; i += width, row++)
     {
         int j = i;
-        ListItem *cursor = linePoints->headItem;
-        while (cursor != NULL)
+        // ListItem *cursor = linePoints->headItem;
+        
+        //while (cursor != NULL)
+
+        for(std::list<Point>::iterator it = linePoints.begin(); it != linePoints.end();it++)
         {
-            int *pointXY = (int *)cursor->content;
-            int x = (int)(pointXY[0] + offsetX + ddx * row);
-            int y = (int)(pointXY[1] + offsetY + ddy * row);
+            Point pointXY = *it;
+            int x = (int)(pointXY.x + offsetX + ddx * row);
+            int y = (int)(pointXY.y + offsetY + ddy * row);
             if (x >= 0 && y >= 0 && x < area[0] && y < area[1])
             {
                 pixels[y * area[0] + x] = data[j];
@@ -174,10 +242,16 @@ ImageData rotateYUV420(unsigned char *data, int dataLen, int width, int height, 
                 }
                 ++j;
             }
-            cursor = cursor->next;
         }
     }
-    destory(linePoints);
+
+    gettimeofday(&tv, NULL);
+    long endTime = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+    printf("cycle end in %ld ms\n", endTime - startTimeStamp);
+
+    // destory(linePoints);
+    linePoints.clear();
+    // delete &linePoints;
     ImageData imageData;
     imageData.width = area[0];
     imageData.height = area[1];
@@ -223,10 +297,10 @@ int *rotateAreaTransform(float rotateDegree, int width, int height)
     return wh;
 }
 
-ListHead *drawLine(int x1, int y1, int x2, int y2, int srcLineWidth)
+list<Point> drawLine(int x1, int y1, int x2, int y2, int srcLineWidth)
 { // cjzmark 输入起始点和终结点，返回线条坐标点阵
     int dx = abs(x2 - x1), dy = abs(y2 - y1), yy = 0;
-    ListHead *pointList = createList();
+    list<Point> pointList;
 
     if (dx < dy)
     {
@@ -262,17 +336,21 @@ ListHead *drawLine(int x1, int y1, int x2, int y2, int srcLineWidth)
         }
         if (yy > 0)
         { // 如果直线与 x 轴的夹角大于 45 度
-            int *content = (int *)malloc(sizeof(int) * 2);
-            content[0] = cy;
-            content[1] = cx;
-            findMethodByObject(pointList, add, (void *)content);
+            // int *content = (int *)malloc(sizeof(int) * 2);
+            Point content;
+            content.x = cy;
+            content.y = cx;
+            // findMethodByObject(pointList, add, (void *)content);
+            pointList.push_back(content);
         }
         else
         { // 如果直线与 x 轴的夹角小于 45 度
-            int *content = (int *)malloc(sizeof(int) * 2);
-            content[0] = cx;
-            content[1] = cy;
-            findMethodByObject(pointList, add, (void *)content);
+            // int *content = (int *)malloc(sizeof(int) * 2);
+            Point content;
+            content.x = cx;
+            content.y = cy;
+            // findMethodByObject(pointList, add, (void *)content);
+            pointList.push_back(content);
         }
         cx += ix;
     }
