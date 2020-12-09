@@ -17,7 +17,6 @@ JNIEXPORT jobject JNICALL Java_com_cjz_lab_rotateNV21AnyAngle_YUV420Rotate_rotat
     free(imageData.data);
     //set java bean
     jclass dataBeanClass = env->FindClass("com/cjz/lab/rotateNV21AnyAngle/ImageDataBean");
-
     // 获取类的构造函数，记住这里是调用无参的构造函数
     jmethodID id = env->GetMethodID(dataBeanClass, "<init>", "()V");
     // 创建一个新的对象
